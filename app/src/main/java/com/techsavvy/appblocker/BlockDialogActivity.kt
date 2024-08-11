@@ -21,6 +21,7 @@ class BlockDialogActivity : ComponentActivity() {
                 BlockDialog(onApprove = {
                     // Set the approval flag to true
                     sharedPreferences.edit().putBoolean("APPROVED", true).apply()
+
                     // Allow the game to proceed
                     finish()
                 })
