@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.techsavvy.appblocker.BlockDialogActivity
@@ -21,7 +22,7 @@ class AppMonitorService : Service() {
 
     private lateinit var handler: Handler
     private lateinit var runnable: Runnable
-    private val targetPackageName = "com.whatsapp" // The app to block
+    private val targetPackageName = "com.dts.freefireth" // The app to block
     private lateinit var sharedPreferences: SharedPreferences
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -33,45 +34,17 @@ class AppMonitorService : Service() {
         // Start monitoring immediately
         handler.post(runnable)
 
+        // Ensure usage access permission
+        if (!hasUsageStatsPermission()) {
+            val usageIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+            usageIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(usageIntent)
+        }
+
         return START_STICKY
     }
+
     private fun monitorApp() {
-        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val endTime = System.currentTimeMillis()
-        val beginTime = endTime + 1000 // Check last 1 second
-
-        val usageEvents = usageStatsManager.queryEvents(beginTime, endTime)
-        var latestEvent: UsageEvents.Event? = null
-
-        while (usageEvents.hasNextEvent()) {
-            val event = UsageEvents.Event()
-            Log.d("Service", "monitorApp: ${event.packageName}")
-
-            usageEvents.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                latestEvent = event
-            } else if ( latestEvent?.packageName == targetPackageName && event.eventType == MOVE_TO_BACKGROUND) {
-                // Reset approval if the app moves to the background
-                sharedPreferences.edit().putBoolean("APPROVED", false).apply()
-            }
-        }
-
-        val isApproved = sharedPreferences.getBoolean("APPROVED", false)
-        Log.d("AppMonitorService", "isApproved: $isApproved")
-        if (!usageStatsManager.isAppInactive(packageName) && !isApproved) {
-            Log.d("AppMonitorService", "Blocked app detected: ${latestEvent?.packageName}")
-            // Launch the dialog activity when the target app is detected
-            val dialogIntent = Intent(this, BlockDialogActivity::class.java)
-            dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(dialogIntent)
-        }
-
-        // Re-run the monitor periodically
-        handler.postDelayed({ monitorApp() }, 1000) // Check every second
-    }
-
-
-    private fun monitorApp1() {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val endTime = System.currentTimeMillis()
         val beginTime = endTime - 1000 // Check last 1 second
@@ -82,52 +55,48 @@ class AppMonitorService : Service() {
         while (usageEvents.hasNextEvent()) {
             val event = UsageEvents.Event()
             usageEvents.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+            Log.d("Service", "Event: ${event.packageName}, EventType: ${event.eventType}")
+
+            if(event?.packageName == targetPackageName) {
                 latestEvent = event
-            } else if (event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND && latestEvent?.packageName == targetPackageName) {
-                // Reset approval if the app moves to the background
+            }
+
+            if(latestEvent?.packageName == targetPackageName && latestEvent?.eventType == 2){
                 sharedPreferences.edit().putBoolean("APPROVED", false).apply()
             }
+
+
+
         }
-//        while (usageEvents.hasNextEvent()) {
-//            val event = UsageEvents.Event()
-//            usageEvents.getNextEvent(event)
-//            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-//                latestEvent = event
-//            } else if (event.eventType == UsageEvents.Event.MOVE_TO_BACKGROUND && latestEvent?.packageName == targetPackageName) {
-//                // Reset approval if the app moves to the background
-//                sharedPreferences.edit().putBoolean("APPROVED", false).apply()
-//            }
-//        }
+        if (latestEvent?.packageName == targetPackageName && latestEvent?.eventType == 23) {
+            val isApproved = sharedPreferences.getBoolean("APPROVED", false)
+            Log.d("AppMonitorService", "App Detected: ${latestEvent.packageName}, Approved: $isApproved")
 
-        // Log the event for debugging
-        Log.d("AppMonitorService", "Event detected: ${latestEvent?.packageName}, Event Type: ${latestEvent?.eventType}")
-
-        // Handle the latest event
-        handleEvent(latestEvent)
-
-        // Reset approval status if the app moves to the background
-        if (latestEvent?.eventType == MOVE_TO_BACKGROUND) {
-            Log.d("AppMonitorService", "App moved to background, resetting approval.")
-            sharedPreferences.edit().putBoolean("APPROVED", false).apply()
-        }
-
-        // Re-run the monitor periodically
-        handler.postDelayed(runnable, 1000) // Check every second
-    }
-
-    private fun handleEvent(event: UsageEvents.Event?) {
-        val isApproved = sharedPreferences.getBoolean("APPROVED", false)
-
-        if (event?.packageName == targetPackageName) {
             if (!isApproved) {
-                Log.d("AppMonitorService", "Blocked app detected: ${event.packageName}. Showing dialog.")
-                // Launch the dialog activity when the target app is detected
+                Log.d("AppMonitorService", "Launching Block Dialog for: ${latestEvent.packageName}")
                 val dialogIntent = Intent(this, BlockDialogActivity::class.java)
                 dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(dialogIntent)
             }
         }
+        // Re-run the monitor periodically
+        handler.postDelayed({ monitorApp() }, 100) // Check every second
+    }
+
+    private fun hasUsageStatsPermission(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            appOps.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName
+            )
+        } else {
+            appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                android.os.Process.myUid(), packageName
+            )
+        }
+        return mode == AppOpsManager.MODE_ALLOWED
     }
 
     private fun createNotification(): Notification {
