@@ -38,14 +38,15 @@ class AppMonitorService : Service() {
     private fun monitorApp() {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val endTime = System.currentTimeMillis()
-        val beginTime = endTime - 500 // Check last 1 second
+        val beginTime = endTime + 1000 // Check last 1 second
 
         val usageEvents = usageStatsManager.queryEvents(beginTime, endTime)
         var latestEvent: UsageEvents.Event? = null
-        Log.d("Service", "monitorApp: ${latestEvent?.packageName}")
 
         while (usageEvents.hasNextEvent()) {
             val event = UsageEvents.Event()
+            Log.d("Service", "monitorApp: ${event.packageName}")
+
             usageEvents.getNextEvent(event)
             if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
                 latestEvent = event
@@ -57,7 +58,7 @@ class AppMonitorService : Service() {
 
         val isApproved = sharedPreferences.getBoolean("APPROVED", false)
         Log.d("AppMonitorService", "isApproved: $isApproved")
-        if (!usageStatsManager.isAppInactive(packageName) && latestEvent?.packageName == targetPackageName && !isApproved) {
+        if (!usageStatsManager.isAppInactive(packageName) && !isApproved) {
             Log.d("AppMonitorService", "Blocked app detected: ${latestEvent?.packageName}")
             // Launch the dialog activity when the target app is detected
             val dialogIntent = Intent(this, BlockDialogActivity::class.java)
