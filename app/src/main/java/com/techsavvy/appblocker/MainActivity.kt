@@ -17,7 +17,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import com.techsavvy.appblocker.utils.AppMonitorService
 import android.app.usage.UsageStatsManager
+import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.text.TextUtils
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -78,9 +81,29 @@ class MainActivity : ComponentActivity() {
             !hasUsageStatsPermission() -> requestUsageStatsPermission()
             !hasOverlayPermission() -> requestOverlayPermission()
             !hasNotificationPermission() -> requestNotificationPermission()
+            !isAccessibilityServiceEnabled() ->requestAccess()
             else -> startAppMonitorService()
         }
     }
+
+    fun requestAccess() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val enabledServices = Settings.Secure.getString(contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+        val colonSplitter = TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServices)
+        while (colonSplitter.hasNext()) {
+            val componentName = ComponentName.unflattenFromString(colonSplitter.next())
+            if (componentName != null && componentName.packageName == packageName) return true
+        }
+        return false
+    }
+
 
     private fun hasUsageStatsPermission(): Boolean {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager

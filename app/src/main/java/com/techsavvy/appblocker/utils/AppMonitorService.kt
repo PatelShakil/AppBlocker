@@ -17,14 +17,38 @@ import android.app.usage.UsageStatsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageEvents.Event.MOVE_TO_FOREGROUND
 import android.app.usage.UsageEvents.Event.MOVE_TO_BACKGROUND
+import android.widget.Toast
 
 class AppMonitorService : Service() {
 
     private lateinit var handler: Handler
     private lateinit var runnable: Runnable
-    private val targetPackageName = "com.dts.freefireth" // The app to block
+    private val targetPackageName = "com.dts.freefiremax" // The app to block
     private lateinit var sharedPreferences: SharedPreferences
 
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        sharedPreferences = getSharedPreferences("AppBlockerPrefs", Context.MODE_PRIVATE)
+        handler = Handler(Looper.getMainLooper())
+        startForeground(1, createNotification())
+
+        // Start the AccessibilityService
+        startAccessibilityService()
+
+        // Start monitoring immediately (optional if using AccessibilityService)
+        handler.post(runnable)
+
+        return START_STICKY
+    }
+
+    private fun startAccessibilityService() {
+        val intent = Intent(this, AppMonitorAccessibilityService::class.java)
+        startService(intent)
+    }
+
+
+
+/*
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         sharedPreferences = getSharedPreferences("AppBlockerPrefs", Context.MODE_PRIVATE)
         handler = Handler(Looper.getMainLooper())
@@ -43,6 +67,7 @@ class AppMonitorService : Service() {
 
         return START_STICKY
     }
+*/
 
     private fun monitorApp() {
         val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
@@ -60,7 +85,18 @@ class AppMonitorService : Service() {
             if(event?.packageName == targetPackageName) {
                 latestEvent = event
             }
+            if (latestEvent?.packageName == targetPackageName) {
+                val isApproved = sharedPreferences.getBoolean("APPROVED", false)
+                Log.d("AppMonitorService", "App Detected: ${latestEvent.packageName}, Approved: $isApproved")
+                Toast.makeText(applicationContext, latestEvent.packageName, Toast.LENGTH_SHORT).show()
 
+                if (!isApproved) {
+                    Log.d("AppMonitorService", "Launching Block Dialog for: ${latestEvent.packageName}")
+                    val dialogIntent = Intent(this, BlockDialogActivity::class.java)
+                    dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(dialogIntent)
+                }
+            }
             if(latestEvent?.packageName == targetPackageName && latestEvent?.eventType == 2){
                 sharedPreferences.edit().putBoolean("APPROVED", false).apply()
             }
@@ -68,19 +104,9 @@ class AppMonitorService : Service() {
 
 
         }
-        if (latestEvent?.packageName == targetPackageName && latestEvent?.eventType == 23) {
-            val isApproved = sharedPreferences.getBoolean("APPROVED", false)
-            Log.d("AppMonitorService", "App Detected: ${latestEvent.packageName}, Approved: $isApproved")
 
-            if (!isApproved) {
-                Log.d("AppMonitorService", "Launching Block Dialog for: ${latestEvent.packageName}")
-                val dialogIntent = Intent(this, BlockDialogActivity::class.java)
-                dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(dialogIntent)
-            }
-        }
         // Re-run the monitor periodically
-        handler.postDelayed({ monitorApp() }, 100) // Check every second
+        handler.postDelayed({ monitorApp() }, 1000) // Check every second
     }
 
     private fun hasUsageStatsPermission(): Boolean {
@@ -128,3 +154,5 @@ class AppMonitorService : Service() {
         return null
     }
 }
+
+
