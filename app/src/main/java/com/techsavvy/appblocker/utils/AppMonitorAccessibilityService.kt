@@ -20,11 +20,12 @@ class AppMonitorAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val packageName = event?.packageName?.toString()
+        Log.d("AppMonitorService", "Game Detected: $packageName")
 
-        if (packageName == targetPackageName) {
+        if (packageName == targetPackageName && event.eventType == 23 ) {
             val isApproved = sharedPreferences.getBoolean("APPROVED", false)
             Log.d("AppMonitorService", "Game Detected: $packageName, Approved: $isApproved")
-            Toast.makeText(applicationContext, "Game Detected: $packageName", Toast.LENGTH_SHORT).show()
+//            Toast.makeText(applicationContext, "Game Detected: $packageName", Toast.LENGTH_SHORT).show()
 
             if (!isApproved) {
                 Log.d("AppMonitorService", "Launching Block Dialog for: $packageName")

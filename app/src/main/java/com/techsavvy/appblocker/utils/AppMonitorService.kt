@@ -30,6 +30,7 @@ class AppMonitorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         sharedPreferences = getSharedPreferences("AppBlockerPrefs", Context.MODE_PRIVATE)
         handler = Handler(Looper.getMainLooper())
+        runnable = Runnable { monitorApp() }
         startForeground(1, createNotification())
 
         // Start the AccessibilityService
@@ -85,18 +86,7 @@ class AppMonitorService : Service() {
             if(event?.packageName == targetPackageName) {
                 latestEvent = event
             }
-            if (latestEvent?.packageName == targetPackageName) {
-                val isApproved = sharedPreferences.getBoolean("APPROVED", false)
-                Log.d("AppMonitorService", "App Detected: ${latestEvent.packageName}, Approved: $isApproved")
-                Toast.makeText(applicationContext, latestEvent.packageName, Toast.LENGTH_SHORT).show()
 
-                if (!isApproved) {
-                    Log.d("AppMonitorService", "Launching Block Dialog for: ${latestEvent.packageName}")
-                    val dialogIntent = Intent(this, BlockDialogActivity::class.java)
-                    dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(dialogIntent)
-                }
-            }
             if(latestEvent?.packageName == targetPackageName && latestEvent?.eventType == 2){
                 sharedPreferences.edit().putBoolean("APPROVED", false).apply()
             }
@@ -104,7 +94,18 @@ class AppMonitorService : Service() {
 
 
         }
+        if (latestEvent?.packageName == targetPackageName) {
+            val isApproved = sharedPreferences.getBoolean("APPROVED", false)
+            Log.d("AppMonitorService", "App Detected: ${latestEvent.packageName}, Approved: $isApproved")
+//            Toast.makeText(applicationContext, latestEvent.packageName, Toast.LENGTH_SHORT).show()
 
+            if (!isApproved) {
+                Log.d("AppMonitorService", "Launching Block Dialog for: ${latestEvent.packageName}")
+                val dialogIntent = Intent(this, BlockDialogActivity::class.java)
+                dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(dialogIntent)
+            }
+        }
         // Re-run the monitor periodically
         handler.postDelayed({ monitorApp() }, 1000) // Check every second
     }
